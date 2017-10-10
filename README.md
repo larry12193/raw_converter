@@ -7,14 +7,12 @@ This repository contains software to convert 12-bit (stored as 16-bit) grayscale
 Ubuntu 14.04.5 LTS (Trusty Tahr)
 
 ROS Indigo
-# raw_converter
-2
 
 ## Usage
 
 Once the package is built within the ROS framework, navigate to
 ```
-cd catkin_ws/devel/lib/raw_converter
+cd /location/of/catkin_ws/devel/lib/raw_converter
 ```
 and execute the following
 ```
