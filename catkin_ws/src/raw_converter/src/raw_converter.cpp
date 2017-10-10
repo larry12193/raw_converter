@@ -21,7 +21,7 @@ using namespace std;
 namespace po = boost::program_options;
 
 void thread(string, string, string, string);
-int MAX_NUM_OF_THREADS = 16;
+int MAX_NUM_OF_THREADS = 6;
 
 void thread(std::string file_name, std::string raw_path, std::string out_path) {
 
@@ -35,7 +35,6 @@ void thread(std::string file_name, std::string raw_path, std::string out_path) {
 
   // Construct output path with new filename
   fname << out_path << "/" << rawName << ".jpg";
-
 
   // Define raw image full path
   std::string totalRawPath = raw_path + "/" + file_name;
@@ -117,19 +116,21 @@ int main( int argc, char** argv ) {
     boost::thread_group threads;
     int count = 0;
     BOOST_FOREACH(std::string fn, fnames) {
-      threads.create_thread(boost::bind(thread, boost::cref(fn), boost::cref(raw_path), boost::cref(out_path)));
-      cout << fn << endl;
+      //threads.create_thread(boost::bind(thread, boost::cref(fn), boost::cref(raw_path), boost::cref(out_path)));
+      thread(fn,raw_path, out_path);
+      cout << count << ":" << fn << endl;
       // Don't start more than a set number of threads
       // TODO: Set the number of threads dynamically.
         // As one thread dies another should be immediately spawned.
         // See this as possible solution:
           // https://stackoverflow.com/questions/22685176/boost-group-threads-maximal-number-of-parallel-thread
-      if (count % MAX_NUM_OF_THREADS == 0) {
-          threads.join_all();
-      }
-      count++;
+      // if (count % MAX_NUM_OF_THREADS == 0) {
+      //     threads.join_all();
+      //     count = 0;
+      // }
+      // count++;
     }
 
-    threads.join_all();
+    // threads.join_all();
 
 }
