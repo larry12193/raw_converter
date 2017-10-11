@@ -12,6 +12,8 @@
 #include "ros/ros.h"
 #include <sensor_msgs/Image.h>
 #include <std_msgs/Header.h>
+#include <sensor_msgs/image_encodings.h>
+#include <cv_bridge/cv_bridge.h>
 
 #include "opencv2/opencv.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
@@ -24,143 +26,67 @@
 using namespace cv;
 using namespace std;
 
-#define CU40	0
-#define CU51_12CUNIR	1 //Both CU51 or 12CUNIR
+int main (int argc, char **argv) {
 
-#define ImageWidth	640
-#define	ImageHeight 480
+  ros::init(argc, argv, "see3cam_cu51_node");
+  ros::NodeHandle nh;
+  ros::NodeHandle priv_nh("~");
 
-char getch(){
-    /*#include <unistd.h>   //_getch*/
-    /*#include <termios.h>  //_getch*/
-    char buf=0;
-    struct termios old={0};
-    fflush(stdout);
-    if(tcgetattr(0, &old)<0)
-        perror("tcsetattr()");
-    old.c_lflag&=~ICANON;
-    old.c_lflag&=~ECHO;
-    old.c_cc[VMIN]=1;
-    old.c_cc[VTIME]=0;
-    if(tcsetattr(0, TCSANOW, &old)<0)
-        perror("tcsetattr ICANON");
-    if(read(0,&buf,1)<0)
-        perror("read()");
-    old.c_lflag|=ICANON;
-    old.c_lflag|=ECHO;
-    if(tcsetattr(0, TCSADRAIN, &old)<0)
-        perror ("tcsetattr ~ICANON");
-    printf("%c\n",buf);
-    return buf;
- }
+  int id;
+  double width, height;
+  priv_nh.param<int>("camera_id", id,     1);
+  priv_nh.param<double>("height", height, 480);
+  priv_nh.param<double>("width",  width,  640);
 
-// Actual Data format BGIRR after conversion BGGR - IR is replaced with the G
-//IR data is collected as a separate image
-bool ConvertRGIR2RGGB(Mat BayerRGIR, Mat &BayerRGGB, Mat &IRimage)
-{
-	//Result image after replacing the IR pixel with the G data
-	BayerRGGB = BayerRGIR.clone();
-
-	//IR data will be half the size of Bayer Image
-	IRimage = Mat(BayerRGIR.size().height / 2, BayerRGIR.size().width / 2, CV_8UC1);
-
-	//copying the IR data and replacing the IR data with G
-	for (int Row = 0; Row < BayerRGIR.rows; Row += 2)
-	{
-		for (int Col = 0; Col < BayerRGIR.cols; Col += 2)
-		{
-                   //Set the IR Data with Nearby Green
-		   BayerRGGB.at<uchar>(Row + 1, Col) = BayerRGIR.at<uchar>(Row, Col + 1);
-                   //Set the IR Data
-		   IRimage.at<uchar>(Row / 2, Col / 2) = BayerRGIR.at<uchar>(Row + 1, Col);
-		}
-	}
-
-	return true;
-}
-
-// Main Function
-int main()
-{
-	char keyPressed;
 	VideoCapture _CameraDevice;
 	Mat ResultImage, InputImage;
-	Mat BayerFrame8, IRImage, BGRImage;
-  cout << "Opending device" << endl;
-	//Open the device at the ID 0
-	_CameraDevice.open(1);
 
+  ROS_INFO("Attempting to open camera at ID %d with %0.0fx%0.0f resolution",id,width,height);
+	//Open the device at the ID 0
+	_CameraDevice.open(id);
 	if( !_CameraDevice.isOpened()) //Check for the device
 	{
-		cout << endl << "\tCamera Device not Initialised Successfully" << endl << endl;
-		cout << endl << "Press any Key to exit the application" << endl << endl;
-
-		getch();
-		return 0;
+		ROS_ERROR("No camera found with ID %d", id);
+		return -1;
 	}
-  cout << "Setting width" << endl;
+
 	//Set up the width and height of the camera
-	_CameraDevice.set(CV_CAP_PROP_FRAME_WIDTH,  ImageWidth);
-	_CameraDevice.set(CV_CAP_PROP_FRAME_HEIGHT, ImageHeight);
+	_CameraDevice.set(CV_CAP_PROP_FRAME_WIDTH,  width);
+	_CameraDevice.set(CV_CAP_PROP_FRAME_HEIGHT, height);
 
-	cout << endl << "Press 'Q / q /Esc' key on the image winodw to exit the application" << endl << endl;
+  // Define image message
+  cv_bridge::CvImage out_msg;
 
-	while(1)
+  // Initialize publisher
+  ros::Publisher img_pub = nh.advertise<sensor_msgs::Image>("/camera/image", 100);
+
+  // Set loop rate
+  ros::Rate loop_rate(60);
+
+	while(ros::ok())
 	{
-		_CameraDevice >> InputImage; //Read the input image
 
-		if(InputImage.empty()) //Check for the vlid image
+    _CameraDevice >> InputImage; //Read the input image
+
+		if(!InputImage.empty()) //Check for the vlid image
 		{
-			cout << "No frame grabbed!!, check whether the camera is free!!" << endl << endl;
-			break;
+      //Convert to 8 Bit:
+                  //Scale the 12 Bit (4096) Pixels into 8 Bit(255) (255/4096)= 0.06226
+  		convertScaleAbs(InputImage, ResultImage, 0.06226);
+
+
+      out_msg.header.stamp = ros::Time::now(); // Same timestamp and tf frame as input image
+      out_msg.encoding     = sensor_msgs::image_encodings::MONO8; // Or whatever
+      out_msg.image        = ResultImage; // Your cv::Mat
+
+      img_pub.publish(out_msg.toImageMsg());
 		}
-
-#if CU51_12CUNIR
-
-		//Convert to 8 Bit:
-                //Scale the 12 Bit (4096) Pixels into 8 Bit(255) (255/4096)= 0.06226
-		convertScaleAbs(InputImage, ResultImage, 0.06226);
-
-		namedWindow("Y16 to Y8", WINDOW_AUTOSIZE);
-		imshow("Y16 to Y8", ResultImage);
-
-#elif CU40
-	        //Convert to 8 Bit:
-                //Scale the 10 Bit (1024) Pixels into 8 Bit(255) (255/1024)= 0.249023
-		convertScaleAbs(InputImage, BayerFrame8, 0.249023);
-
-		//Filling the missing G -channel bayer data
-		ConvertRGIR2RGGB(BayerFrame8, BayerFrame8, IRImage);
-
-		//Actual Bayer format BG but Opencv uses BGR & Not RGB So taking RG Bayer format
-		cvtColor(BayerFrame8, BGRImage, COLOR_BayerRG2BGR);
-
-		namedWindow("Camera BGR Frame", WINDOW_AUTOSIZE);
-		imshow("Camera BGR Frame", BGRImage);
-
-		namedWindow("Camera IR Frame", WINDOW_AUTOSIZE);
-		imshow("Camera IR Frame", IRImage);
-
-#else //10CUG and other camera's
-
-		namedWindow("Camera Frame", WINDOW_AUTOSIZE);
-		imshow("Camera Frame", InputImage);
-#endif
-
-		keyPressed = waitKey(1); //Waits for a user input to quit the application
-
-		if(keyPressed == 27 || keyPressed == 'q'  || keyPressed == 'Q' )
-		{
-			destroyAllWindows();
-			break;
-		}
+    ros::spinOnce();
+    loop_rate.sleep();
 	}
 
 	//Release the devices
 	_CameraDevice.release();
-
-	cout << endl << "Press any Key to exit the application" << endl << endl;
-	getch();
 
 	return 1;
 }

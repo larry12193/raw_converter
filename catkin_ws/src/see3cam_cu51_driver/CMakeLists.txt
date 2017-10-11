@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
 )
 
-set(CMAKE_PREFIX_PATH $ENV{OPENCV_ECON_PATH})
+set(CMAKE_PREFIX_PATH "$ENV{OPENCV_ECON_PATH}")
 link_directories($ENV{OPENCV_ECON_PATH}/lib)
 
 catkin_package()
