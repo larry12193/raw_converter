@@ -22,6 +22,8 @@ namespace po = boost::program_options;
 
 void thread(string, string, string, string);
 int MAX_NUM_OF_THREADS = 6;
+int HEIGHT = 0;
+int WIDTH = 0;
 
 void thread(std::string file_name, std::string raw_path, std::string out_path) {
 
@@ -42,12 +44,12 @@ void thread(std::string file_name, std::string raw_path, std::string out_path) {
   // Load raw image
   ifstream fs;
   fs.open(totalRawPath.c_str(), ios::in | ios::binary );
-  unsigned short *tmp = new unsigned short [2592*1944];
-  fs.read((char*)tmp, 640*480*2);
+  unsigned short *tmp = new unsigned short [HEIGHT*WIDTH];
+  fs.read((char*)tmp, HEIGHT*WIDTH*2);
   fs.close();
 
   // Define image matrix object
-  cv::Mat image = cv::Mat(480,640, CV_16UC1,tmp);
+  cv::Mat image = cv::Mat(HEIGHT,WIDTH, CV_16UC1,tmp);
   normalize(image, image, 0, 255, cv::NORM_MINMAX, -1, cv::Mat() );
 
   // Save as jpg
@@ -60,7 +62,9 @@ int main( int argc, char** argv ) {
     po::options_description desc("Allowed Options");
     desc.add_options()
         ("help,h", "Allowed Options:")
-        ("dir,d", po::value<string>(), "The path to a directory of files to be processed.");
+        ("dir,d", po::value<string>(), "The path to a directory of files to be processed.")
+        ("height,H", po::value<int>(), "The height (in pixels) of the images")
+        ("width,W", po::value<int>(), "The width (in pixels) of the images");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -78,8 +82,23 @@ int main( int argc, char** argv ) {
         return 1;
     }
 
+    if(!vm.count("height")) {
+        cout << "No image height provided! Aborting conversion.\n";
+        cout << desc << "\n";
+        return 1;
+    }
+
+    if(!vm.count("width")) {
+        cout << "No image width provided! Aborting conversion.\n";
+        cout << desc << "\n";
+        return 1;
+    }
+
     string raw_path = vm["dir"].as<string>();
     string out_path = raw_path + "/jpgs";
+
+    HEIGHT = vm["height"].as<int>();
+    WIDTH  = vm["width"].as<int>();
 
     vector<std::string> fnames; // File names in raw directory
     boost::filesystem::directory_iterator di(raw_path.c_str());
