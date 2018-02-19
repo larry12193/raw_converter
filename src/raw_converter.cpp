@@ -42,7 +42,7 @@ void thread(std::string file_name, std::string raw_path, std::string out_path) {
   // Load raw image
   ifstream fs;
   fs.open(totalRawPath.c_str(), ios::in | ios::binary );
-  unsigned short *tmp = new unsigned short [640*480];
+  unsigned short *tmp = new unsigned short [2592*1944];
   fs.read((char*)tmp, 640*480*2);
   fs.close();
 
@@ -52,7 +52,6 @@ void thread(std::string file_name, std::string raw_path, std::string out_path) {
 
   // Save as jpg
   cv::imwrite(fname.str().c_str(), image);
-  return;
 }
 
 int main( int argc, char** argv ) {
@@ -98,16 +97,8 @@ int main( int argc, char** argv ) {
     char yes_no;
     boost::filesystem::path out_dir(out_path.c_str());
     if(boost::filesystem::exists(out_dir)) {
-    //    cout << "Output directory already exists. Overwrite? (y/n): ";
-    //    cin.get(yes_no);
-    //    if( yes_no == 'y' || yes_no == 'Y' ) {
-            cout << "Removing " << out_path.c_str() << endl;
-            boost::filesystem::remove_all(out_path);
-    //    }
-    //    else {
-    //        cout << "Quitting." << endl;
-    //        return 1;
-    //    }
+        cout << "Removing " << out_path.c_str() << endl;
+        boost::filesystem::remove_all(out_path);
     }
 
     cout << "Creating " << out_path.c_str() << endl;
@@ -115,22 +106,19 @@ int main( int argc, char** argv ) {
 
     boost::thread_group threads;
     int count = 0;
+    int id = 0;
     BOOST_FOREACH(std::string fn, fnames) {
-      //threads.create_thread(boost::bind(thread, boost::cref(fn), boost::cref(raw_path), boost::cref(out_path)));
-      thread(fn,raw_path, out_path);
-      cout << count << ":" << fn << endl;
+      threads.create_thread(boost::bind(thread, fn, raw_path, out_path));
+      cout << id << ": " << fn << endl;
       // Don't start more than a set number of threads
-      // TODO: Set the number of threads dynamically.
-        // As one thread dies another should be immediately spawned.
-        // See this as possible solution:
-          // https://stackoverflow.com/questions/22685176/boost-group-threads-maximal-number-of-parallel-thread
-      // if (count % MAX_NUM_OF_THREADS == 0) {
-      //     threads.join_all();
-      //     count = 0;
-      // }
-      // count++;
+      if (count % 10 == 0) {
+          threads.join_all();
+          count = 0;
+      }
+      id++;
+      count++;
     }
-
-    // threads.join_all();
-
+    threads.join_all();
+    return 0;
 }
+
